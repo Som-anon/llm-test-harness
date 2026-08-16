@@ -1,9 +1,10 @@
 import base64
 from pathlib import Path
-
+import os
 
 def image_to_data_uri(image_path):
     """Encode an image file as a base64 data URI suitable for vision models."""
+    image_path = os.path.expanduser(image_path)
     p = Path(image_path)
     mime = "image/jpeg" if p.suffix.lower() in (".jpg", ".jpeg") else "image/png"
     data = base64.b64encode(p.read_bytes()).decode("ascii")

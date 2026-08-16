@@ -7,6 +7,7 @@ import argparse
 import json
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
+import os
 
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
 
@@ -106,6 +107,7 @@ def visualize_run(run_dir, output_dir=None, debug=False, whiteout=False, text_fi
                 print(f"    Available keys: {list(res.keys())}")
                 print(f"    Full result (first 300 chars): {str(res)[:300]}")
             continue
+        image_path = os.path.expanduser(image_path)
 
         # Resolve path
         img_abs = Path(image_path)
