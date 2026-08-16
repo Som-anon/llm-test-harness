@@ -1,40 +1,23 @@
 import json
-import re
-from rich.console import Console
-from .evaluators import evaluate
-from .execution import run_code
+import sys
+import tempfile
+import subprocess
+from pathlib import Path
 from .ocr import build_image_messages
+from .execution import run_code
+from .evaluators import evaluate
 
-console = Console()
-
-def extract_json(text):
-    if not text: return None
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except:
-        pass
-    
-    # Try to find markdown fenced json
-    m = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
-    if m:
+def extract_json(content):
+    import re
+    match = re.search(r'\{.*\}|\[.*\]', content, re.DOTALL)
+    if match:
         try:
-            return json.loads(m.group(1))
-        except:
+            return json.loads(match.group(0))
+        except Exception:
             pass
-            
-    # Fallback: find first { and last }
-    start = text.find('{')
-    end = text.rfind('}')
-    if start != -1 and end != -1 and end > start:
-        try:
-            return json.loads(text[start:end+1])
-        except:
-            pass
-            
     return None
 
-def run_test(client, model, test, run_dir):
+def run_test(client, model, test, run_dir, judge_model=None, judge_endpoint=None):
     test_id = test['id']
     req = test['request']
     messages = req.get('messages', [])
@@ -76,7 +59,6 @@ def run_test(client, model, test, run_dir):
         
         exec_res = None
         
-        # FIX: Check if extracted is actually a dict before looking for 'code'
         if code_eval and isinstance(extracted, dict) and 'code' in extracted:
             lang = code_eval.get('language', 'python')
             exec_res = run_code(lang, extracted['code'], code_eval.get('timeout_seconds', 30))
@@ -87,12 +69,19 @@ def run_test(client, model, test, run_dir):
                 history.append({"role": "user", "content": feedback})
                 continue
         
-        eval_results = evaluate(eval_defs, extracted, content)
+        eval_results = evaluate(
+            eval_defs, 
+            extracted, 
+            content, 
+            client=client, 
+            default_model=model, 
+            judge_model=judge_model, 
+            judge_endpoint=judge_endpoint
+        )
         
         if code_eval:
             for er in eval_results:
                 if er['type'] == 'code_execution':
-                    # FIX: Handle the case where exec_res is None (JSON extraction failed)
                     if exec_res:
                         er['passed'] = exec_res['success']
                         er['details'] = exec_res

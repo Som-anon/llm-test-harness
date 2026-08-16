@@ -33,6 +33,12 @@ evaluation:
     key: trans
   - type: contains_key
     key: pos
-  - type: bbox_iou
+    
+  # Replaces bbox_iou: Evaluates boxes, transcription, and translation
+  - type: ocr_eval
     reference: ocr/translate_004_ref.json
-    threshold: 0.3
+    pixel_accuracy: 100         # Max allowed center distance in pixels
+    
+    # Thresholds can be customized (defaults shown)
+    passing_threshold: 9.99     # Transcription/Translation score required to PASS
+    bbox_passing_threshold: 1.0 # Fraction of boxes (0.0-1.0) required to PASS

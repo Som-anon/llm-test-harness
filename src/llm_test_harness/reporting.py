@@ -17,6 +17,8 @@ pre { background: #f4f4f4; padding: 10px; overflow-x: auto; border-radius: 4px; 
 .meta { color: #666; font-size: 0.9em; margin-bottom: 10px; }
 .metrics-list { list-style-type: none; padding: 0; margin: 5px 0 15px 0; display: flex; flex-wrap: wrap; gap: 15px; }
 .metrics-list li { background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+.category-scores { background: #eef; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
+.category-scores ul { margin: 0; padding-left: 20px; }
 </style>
 </head>
 <body>
@@ -28,6 +30,17 @@ pre { background: #f4f4f4; padding: 10px; overflow-x: auto; border-radius: 4px; 
 <div class="test {{ r.status }}">
     <h3>{{ r.test_id }} <span class="meta">({{ r.model }})</span></h3>
     <p class="meta">Category: {{ r.category | default('') }} / {{ r.subcategory | default('') }} | Status: <strong>{{ r.status|upper }}</strong> | Attempts: {{ r.attempts | default(0) }}</p>
+
+    {% if r.scores_by_category is defined %}
+    <div class="category-scores">
+        <h4>Scores by Category:</h4>
+        <ul>
+        {% for cat, score in r.scores_by_category.items() %}
+            <li><strong>{{ cat }}</strong>: {{ score | round(2) }} / {{ r.max_scores_by_category[cat] | round(2) }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 
     {% if r.status == 'error' %}
     <h4>Error:</h4>
@@ -80,7 +93,11 @@ Stderr: {{ r.execution.stderr }}</pre>
     <ul>
     {% for e in r.evaluations | default([]) %}
         <li class="{{ 'eval-pass' if e.passed else 'eval-fail' }}">
+            {% if e.category %}<strong>{{ e.category }}</strong>: {% endif %}
             {{ e.type }}: {{ 'PASS' if e.passed else 'FAIL' }}
+            {% if e.score is defined %}
+                (Score: {{ e.score | round(2) }} / {{ e.max_score | default(10) }})
+            {% endif %}
             {% if e.details %}<small>({{ e.details }})</small>{% endif %}
         </li>
     {% endfor %}
@@ -99,6 +116,22 @@ def generate_report(results, run_dir):
     pass_count = sum(1 for r in results if r['status'] == 'pass')
     fail_count = sum(1 for r in results if r['status'] == 'fail')
     error_count = sum(1 for r in results if r['status'] == 'error')
+
+    # Aggregate scores into categories for the report
+    for r in results:
+        scores_by_cat = {}
+        max_by_cat = {}
+        for e in r.get('evaluations', []):
+            cat = e.get('category', 'General')
+            score = e.get('score', 10.0 if e.get('passed') else 0.0)
+            max_s = e.get('max_score', 10.0)
+            
+            scores_by_cat[cat] = scores_by_cat.get(cat, 0) + score
+            max_by_cat[cat] = max_by_cat.get(cat, 0) + max_s
+            
+        if scores_by_cat:
+            r['scores_by_category'] = scores_by_cat
+            r['max_scores_by_category'] = max_by_cat
 
     template = Template(HTML_TEMPLATE)
     html = template.render(

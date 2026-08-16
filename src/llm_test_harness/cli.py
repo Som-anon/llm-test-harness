@@ -9,10 +9,10 @@ from rich.console import Console
 from .client import LLMClient
 from .runner import run_test
 from .reporting import generate_report
-
-console = Console()
+from .evaluators import evaluate
 
 def main():
+    console = Console()
     parser = argparse.ArgumentParser(description="LLM Test Harness")
     subparsers = parser.add_subparsers(dest="cmd")
     
@@ -24,10 +24,20 @@ def main():
     run_p.add_argument("--category", help="Filter by category")
     run_p.add_argument("--subcategory", help="Filter by subcategory")
     run_p.add_argument("--timeout", type=float, default=300.0, help="Request timeout in seconds (default: 300)")
+    run_p.add_argument("--judge-model", help="Model to use as judge for semantic evaluation")
+    run_p.add_argument("--judge-endpoint", help="Endpoint for the judge model")
     
     report_p = subparsers.add_parser("report")
     report_p.add_argument("run_dir")
     
+    eval_p = subparsers.add_parser("evaluate")
+    eval_p.add_argument("run_dir", help="Directory containing the run to evaluate")
+    eval_p.add_argument("--suite", default="suites", help="Directory containing test suites")
+    eval_p.add_argument("--judge-model", help="Model to use as judge for semantic evaluation")
+    eval_p.add_argument("--judge-endpoint", help="Endpoint for the judge model")
+    eval_p.add_argument("--endpoint", default="http://localhost:5000", help="Default endpoint if judge endpoint is not specified")
+    eval_p.add_argument("--timeout", type=float, default=300.0, help="Request timeout in seconds")
+
     args = parser.parse_args()
     
     if args.cmd == "run":
@@ -71,7 +81,11 @@ def main():
             console.print(f"\n[bold blue]Testing model: {model}[/bold blue]")
             for test in tests:
                 console.print(f"  Running {test['id']}...", end=" ")
-                res = run_test(client, model, test, run_dir)
+                res = run_test(
+                    client, model, test, run_dir, 
+                    judge_model=args.judge_model, 
+                    judge_endpoint=args.judge_endpoint
+                )
                 results.append(res)
                 status = res.get('status', 'error')
                 if status == 'pass':
@@ -97,5 +111,59 @@ def main():
         generate_report(results, run_dir)
         console.print(f"Report regenerated for {run_dir}")
 
-if __name__ == "__main__":
-    main()
+    elif args.cmd == "evaluate":
+        run_dir = Path(args.run_dir)
+        results_path = run_dir / "results.json"
+        if not results_path.exists():
+            console.print(f"[red]Error: {results_path} not found.[/red]")
+            return
+            
+        with open(results_path) as f:
+            results = json.load(f)
+            
+        # Load tests to get evaluation definitions
+        suite_dir = Path(args.suite)
+        tests = []
+        if suite_dir.exists():
+            for p in suite_dir.rglob("*.yaml"):
+                with open(p) as f:
+                    tests.append(yaml.safe_load(f))
+                    
+        test_map = {t['id']: t for t in tests}
+        
+        # Setup clients
+        client = LLMClient(args.endpoint, timeout=args.timeout)
+        judge_client = None
+        if args.judge_endpoint:
+            judge_client = LLMClient(args.judge_endpoint, timeout=args.timeout)
+            
+        updated_count = 0
+        for res in results:
+            test_id = res.get('test_id')
+            if test_id in test_map:
+                test = test_map[test_id]
+                eval_defs = test.get('evaluation', [])
+                
+                extracted = res.get('response', {}).get('extracted')
+                raw_content = res.get('response', {}).get('content')
+                
+                if extracted is not None or raw_content is not None:
+                    new_eval_results = evaluate(
+                        eval_defs, 
+                        extracted, 
+                        raw_content, 
+                        client=judge_client if judge_client else client, 
+                        default_model=res.get('model'), 
+                        judge_model=args.judge_model,
+                        judge_endpoint=args.judge_endpoint
+                    )
+                    passed = all(er.get('passed', False) for er in new_eval_results)
+                    res['evaluations'] = new_eval_results
+                    res['status'] = "pass" if passed else "fail"
+                    updated_count += 1
+                    
+        if updated_count > 0:
+            generate_report(results, run_dir)
+            console.print(f"Re-evaluated {updated_count} results and updated report at {run_dir / 'report.html'}")
+        else:
+            console.print("No results could be re-evaluated.")
