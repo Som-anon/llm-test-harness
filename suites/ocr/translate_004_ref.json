@@ -1,0 +1,5 @@
+[
+  {"orig": "Sample", "pos": [40, 50, 200, 60]},
+  {"orig": "Document", "pos": [40, 130, 280, 60]},
+  {"orig": "Hello World", "pos": [40, 250, 320, 70]}
+]

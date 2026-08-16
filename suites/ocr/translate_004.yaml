@@ -1,0 +1,38 @@
+id: ocr/translate_004
+category: ocr
+subcategory: translation
+tags: [ocr, vision, translation]
+timeout_seconds: 600
+
+image:
+  path: ~/004.jpg
+
+request:
+  temperature: 0.0
+  response_format:
+    type: json_object
+  messages:
+    - role: user
+      content: |
+        Transcribe every textbox visible in the image.
+        For each textbox, output an entry in a JSON array with these keys:
+          - orig: the original text exactly as it appears in the textbox
+          - trans: an English translation of the original text
+          - pos: the bounding box of the textbox as [x, y, width, height] in pixels
+        Respond ONLY with a JSON array, e.g.:
+        [{"orig": "...", "trans": "...", "pos": [x, y, w, h]}, ...]
+
+extract:
+  type: json
+
+evaluation:
+  - type: json_array
+  - type: contains_key
+    key: orig
+  - type: contains_key
+    key: trans
+  - type: contains_key
+    key: pos
+  - type: bbox_iou
+    reference: ocr/translate_004_ref.json
+    threshold: 0.3
