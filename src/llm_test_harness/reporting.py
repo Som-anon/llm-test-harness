@@ -14,6 +14,8 @@ pre { background: #f4f4f4; padding: 10px; overflow-x: auto; border-radius: 4px; 
 .eval-pass { color: #28a745; font-weight: bold; }
 .eval-fail { color: #dc3545; font-weight: bold; }
 .meta { color: #666; font-size: 0.9em; margin-bottom: 10px; }
+.metrics-list { list-style-type: none; padding: 0; margin: 5px 0 15px 0; display: flex; flex-wrap: wrap; gap: 15px; }
+.metrics-list li { background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
 </style>
 </head>
 <body>
@@ -24,7 +26,23 @@ pre { background: #f4f4f4; padding: 10px; overflow-x: auto; border-radius: 4px; 
 {% for r in results %}
 <div class="test {{ r.status }}">
     <h3>{{ r.test_id }} <span class="meta">({{ r.model }})</span></h3>
-    <p class="meta">Category: {{ r.category }} / {{ r.subcategory }} | Status: <strong>{{ r.status|upper }}</strong> | Attempts: {{ r.attempts }} | Latency: {{ r.latency_ms }}ms</p>
+    <p class="meta">Category: {{ r.category }} / {{ r.subcategory }} | Status: <strong>{{ r.status|upper }}</strong> | Attempts: {{ r.attempts }}</p>
+    
+    <h4>Performance Metrics:</h4>
+    <ul class="metrics-list">
+        <li>Total Latency: <strong>{{ r.metrics.get('latency_ms', 'N/A') }} ms</strong></li>
+        <li>Prompt Tokens: <strong>{{ r.metrics.get('prompt_tokens', 'N/A') }}</strong></li>
+        <li>Completion Tokens: <strong>{{ r.metrics.get('completion_tokens', 'N/A') }}</strong></li>
+        {% if r.metrics.get('prompt_time_ms') %}
+        <li>Time to First Token / Prompt Eval: <strong>{{ r.metrics.get('prompt_time_ms') }} ms</strong></li>
+        {% endif %}
+        {% if r.metrics.get('completion_time_ms') %}
+        <li>Generation Time: <strong>{{ r.metrics.get('completion_time_ms') }} ms</strong></li>
+        {% endif %}
+        {% if r.metrics.get('tokens_per_second') %}
+        <li>Tokens per Second (TPS): <strong>{{ r.metrics.get('tokens_per_second') }}</strong></li>
+        {% endif %}
+    </ul>
     
     <h4>Initial Prompt:</h4>
     <pre>{{ r.request.messages[0].content if r.request.messages else '' }}</pre>

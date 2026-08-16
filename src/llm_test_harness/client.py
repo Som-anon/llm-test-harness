@@ -3,7 +3,6 @@ import time
 
 class LLMClient:
     def __init__(self, base_url="http://localhost:5000"):
-        # Ensure we hit the /v1 endpoint if not provided, or just use what's given
         self.base_url = base_url.rstrip('/')
         if not self.base_url.endswith('/v1'):
             self.base_url += '/v1'
@@ -29,16 +28,35 @@ class LLMClient:
             
         start = time.time()
         r = self.client.post(f"{self.base_url}/chat/completions", json=payload)
-        latency = time.time() - start
+        total_latency = time.time() - start
         r.raise_for_status()
         
         data = r.json()
         content = data['choices'][0]['message']['content']
         usage = data.get('usage', {})
         
+        # Attempt to extract detailed timing if the backend supports it (e.g., llama.cpp / vLLM)
+        prompt_time_s = data.get('prompt_eval_duration', data.get('prompt_time', 0))
+        completion_time_s = data.get('eval_duration', data.get('completion_time', 0))
+        
+        metrics = {
+            "latency_ms": int(total_latency * 1000),
+            "prompt_tokens": usage.get('prompt_tokens', 0),
+            "completion_tokens": usage.get('completion_tokens', 0),
+            "total_tokens": usage.get('total_tokens', 0),
+        }
+        
+        if isinstance(prompt_time_s, (int, float)) and prompt_time_s > 0:
+            metrics["prompt_time_ms"] = int(prompt_time_s * 1000)
+        if isinstance(completion_time_s, (int, float)) and completion_time_s > 0:
+            metrics["completion_time_ms"] = int(completion_time_s * 1000)
+            
+        if metrics['completion_tokens'] > 0 and metrics.get('completion_time_ms', 0) > 0:
+            metrics['tokens_per_second'] = round(metrics['completion_tokens'] / (metrics['completion_time_ms'] / 1000.0), 2)
+
         return {
             "content": content,
-            "latency_ms": int(latency * 1000),
+            "metrics": metrics,
             "usage": usage,
             "raw": data
         }

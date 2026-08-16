@@ -69,7 +69,9 @@ def run_test(client, model, test, run_dir):
         code_eval = next((e for e in eval_defs if e.get('type') == 'code_execution'), None)
         
         exec_res = None
-        if code_eval and extracted and 'code' in extracted:
+        
+        # FIX: Check if extracted is actually a dict before looking for 'code'
+        if code_eval and isinstance(extracted, dict) and 'code' in extracted:
             lang = code_eval.get('language', 'python')
             exec_res = run_code(lang, extracted['code'], code_eval.get('timeout_seconds', 30))
             
@@ -84,8 +86,13 @@ def run_test(client, model, test, run_dir):
         if code_eval:
             for er in eval_results:
                 if er['type'] == 'code_execution':
-                    er['passed'] = exec_res['success']
-                    er['details'] = exec_res
+                    # FIX: Handle the case where exec_res is None (JSON extraction failed)
+                    if exec_res:
+                        er['passed'] = exec_res['success']
+                        er['details'] = exec_res
+                    else:
+                        er['passed'] = False
+                        er['details'] = "Failed to extract 'code' key from JSON response."
                     
         passed = all(er['passed'] for er in eval_results)
         
@@ -100,8 +107,8 @@ def run_test(client, model, test, run_dir):
             "response": {"content": content, "extracted": extracted},
             "execution": exec_res,
             "evaluations": eval_results,
-            "latency_ms": resp['latency_ms'],
-            "usage": resp['usage']
+            "metrics": resp.get('metrics', {}),
+            "usage": resp.get('usage', {})
         }
         break
         
