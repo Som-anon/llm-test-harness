@@ -1,0 +1,21 @@
+[project]
+name = "llm-test-harness"
+version = "0.1.0"
+description = "Minimal LLM Test Harness"
+dependencies = [
+    "httpx",
+    "pyyaml",
+    "rich",
+    "jsonpath-ng",
+    "jinja2"
+]
+
+[project.scripts]
+llm-harness = "llm_test_harness.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

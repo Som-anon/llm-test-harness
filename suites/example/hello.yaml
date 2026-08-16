@@ -1,0 +1,21 @@
+id: example/hello_world
+category: general
+subcategory: basic
+tags: [smoke]
+
+request:
+  temperature: 0.0
+  response_format:
+    type: json_object
+  messages:
+    - role: user
+      content: |
+        Say hello in JSON format like {"message": "hello"}.
+
+extract:
+  type: json
+
+evaluation:
+  - type: json_path
+    path: $.message
+    value: "hello"
