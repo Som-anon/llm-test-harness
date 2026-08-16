@@ -1,11 +1,10 @@
 import re
-import json
 from jsonpath_ng import parse
 
 def evaluate(test_eval, extracted, raw_content):
     results = []
     for ev in test_eval:
-        t = ev['type']
+        t = ev.get('type')
         res = {"type": t, "passed": False, "details": ""}
         
         try:
@@ -42,7 +41,7 @@ def evaluate(test_eval, extracted, raw_content):
                         res["passed"] = ev['min'] <= val <= ev['max']
                         
             elif t == 'code_execution':
-                # Handled in runner
+                # Handled dynamically in runner
                 res["passed"] = True 
                 
         except Exception as e:

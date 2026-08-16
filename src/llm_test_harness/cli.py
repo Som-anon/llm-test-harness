@@ -17,10 +17,12 @@ def main():
     subparsers = parser.add_subparsers(dest="cmd")
     
     run_p = subparsers.add_parser("run")
-    run_p.add_argument("--endpoint", default="http://localhost:5000/v1")
+    run_p.add_argument("--endpoint", default="http://localhost:5000")
     run_p.add_argument("--model", default="*")
     run_p.add_argument("--suite", default="suites")
     run_p.add_argument("--filter", default="*")
+    run_p.add_argument("--category", help="Filter by category")
+    run_p.add_argument("--subcategory", help="Filter by subcategory")
     
     report_p = subparsers.add_parser("report")
     report_p.add_argument("run_dir")
@@ -51,7 +53,15 @@ def main():
                 
         if args.filter != "*":
             tests = [t for t in tests if fnmatch.fnmatch(t['id'], args.filter)]
+        if args.category:
+            tests = [t for t in tests if t.get('category') == args.category]
+        if args.subcategory:
+            tests = [t for t in tests if t.get('subcategory') == args.subcategory]
             
+        if not tests:
+            console.print("[yellow]No tests found matching criteria.[/yellow]")
+            return
+
         run_dir = Path("runs") / datetime.now().strftime("%Y-%m-%d_%H%M%S")
         run_dir.mkdir(parents=True, exist_ok=True)
         
@@ -62,7 +72,7 @@ def main():
                 console.print(f"  Running {test['id']}...", end=" ")
                 res = run_test(client, model, test, run_dir)
                 results.append(res)
-                console.print(f"[green]PASS[/green]" if res['status'] == 'pass' else f"[red]FAIL[/red]")
+                console.print(f"[green]PASS[/green]" if res.get('status') == 'pass' else f"[red]FAIL[/red]")
                 
         generate_report(results, run_dir)
         console.print(f"\nReport saved to {run_dir / 'report.html'}")

@@ -1,10 +1,6 @@
-import yaml
 import json
 import re
-import time
-from pathlib import Path
 from rich.console import Console
-from .client import LLMClient
 from .evaluators import evaluate
 from .execution import run_code
 
@@ -18,6 +14,7 @@ def extract_json(text):
     except:
         pass
     
+    # Try to find markdown fenced json
     m = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
     if m:
         try:
@@ -25,6 +22,7 @@ def extract_json(text):
         except:
             pass
             
+    # Fallback: find first { and last }
     start = text.find('{')
     end = text.rfind('}')
     if start != -1 and end != -1 and end > start:
@@ -38,7 +36,6 @@ def extract_json(text):
 def run_test(client, model, test, run_dir):
     test_id = test['id']
     req = test['request']
-    
     messages = req.get('messages', [])
     
     attempts = 0
@@ -60,7 +57,7 @@ def run_test(client, model, test, run_dir):
                 response_format=req.get('response_format')
             )
         except Exception as e:
-            return {"status": "error", "error": str(e)}
+            return {"status": "error", "error": str(e), "test_id": test_id, "model": model}
             
         content = resp['content']
         extracted = None
@@ -69,7 +66,7 @@ def run_test(client, model, test, run_dir):
             extracted = extract_json(content)
             
         eval_defs = test.get('evaluation', [])
-        code_eval = next((e for e in eval_defs if e['type'] == 'code_execution'), None)
+        code_eval = next((e for e in eval_defs if e.get('type') == 'code_execution'), None)
         
         exec_res = None
         if code_eval and extracted and 'code' in extracted:
@@ -95,6 +92,8 @@ def run_test(client, model, test, run_dir):
         final_result = {
             "test_id": test_id,
             "model": model,
+            "category": test.get('category', ''),
+            "subcategory": test.get('subcategory', ''),
             "attempts": attempts,
             "status": "pass" if passed else "fail",
             "request": {"messages": current_messages},

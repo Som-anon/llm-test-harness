@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from jinja2 import Template
 
 HTML_TEMPLATE = """
@@ -7,13 +6,14 @@ HTML_TEMPLATE = """
 <html>
 <head>
 <style>
-body { font-family: sans-serif; margin: 20px; }
-.test { border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-.pass { border-left: 5px solid green; }
-.fail { border-left: 5px solid red; }
-pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
-.eval-pass { color: green; font-weight: bold; }
-.eval-fail { color: red; font-weight: bold; }
+body { font-family: sans-serif; margin: 20px; background: #fafafa; }
+.test { background: white; border: 1px solid #ccc; padding: 15px; margin-bottom: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.pass { border-left: 5px solid #28a745; }
+.fail { border-left: 5px solid #dc3545; }
+pre { background: #f4f4f4; padding: 10px; overflow-x: auto; border-radius: 4px; }
+.eval-pass { color: #28a745; font-weight: bold; }
+.eval-fail { color: #dc3545; font-weight: bold; }
+.meta { color: #666; font-size: 0.9em; margin-bottom: 10px; }
 </style>
 </head>
 <body>
@@ -23,8 +23,8 @@ pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
 
 {% for r in results %}
 <div class="test {{ r.status }}">
-    <h3>{{ r.test_id }} ({{ r.model }})</h3>
-    <p>Status: <strong>{{ r.status|upper }}</strong> | Attempts: {{ r.attempts }} | Latency: {{ r.latency_ms }}ms</p>
+    <h3>{{ r.test_id }} <span class="meta">({{ r.model }})</span></h3>
+    <p class="meta">Category: {{ r.category }} / {{ r.subcategory }} | Status: <strong>{{ r.status|upper }}</strong> | Attempts: {{ r.attempts }} | Latency: {{ r.latency_ms }}ms</p>
     
     <h4>Initial Prompt:</h4>
     <pre>{{ r.request.messages[0].content if r.request.messages else '' }}</pre>
@@ -37,7 +37,7 @@ pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
     <pre>{{ r.response.content }}</pre>
     
     {% if r.response.extracted %}
-    <h4>Extracted:</h4>
+    <h4>Extracted JSON:</h4>
     <pre>{{ r.response.extracted | tojson(indent=2) }}</pre>
     {% endif %}
     
@@ -58,10 +58,8 @@ Stderr: {{ r.execution.stderr }}</pre>
     {% endfor %}
     </ul>
 
-    {% if r.human_score is defined %}
     <h4>Human Review:</h4>
-    <p>Score: {{ r.human_score }} | Notes: {{ r.human_notes }}</p>
-    {% endif %}
+    <p>Score: {{ r.human_score | default('N/A') }} | Notes: {{ r.human_notes | default('') }}</p>
 </div>
 {% endfor %}
 </body>

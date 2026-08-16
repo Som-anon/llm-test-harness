@@ -1,0 +1,25 @@
+id: programming/python/fibonacci
+category: programming
+subcategory: python
+tags: [code, execution]
+
+retry:
+  max_rounds: 2
+
+request:
+  temperature: 0.0
+  response_format:
+    type: json_object
+  messages:
+    - role: user
+      content: |
+        Write a Python program that prints the first 10 Fibonacci numbers.
+        Respond ONLY with JSON: {"code": "..."}
+
+extract:
+  type: json
+
+evaluation:
+  - type: code_execution
+    language: python
+    timeout_seconds: 10

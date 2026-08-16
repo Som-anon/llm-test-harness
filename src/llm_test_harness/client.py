@@ -2,9 +2,12 @@ import httpx
 import time
 
 class LLMClient:
-    def __init__(self, base_url="http://localhost:5000/v1"):
+    def __init__(self, base_url="http://localhost:5000"):
+        # Ensure we hit the /v1 endpoint if not provided, or just use what's given
         self.base_url = base_url.rstrip('/')
-        self.client = httpx.Client(timeout=120.0)
+        if not self.base_url.endswith('/v1'):
+            self.base_url += '/v1'
+        self.client = httpx.Client(timeout=180.0)
 
     def get_models(self):
         try:
