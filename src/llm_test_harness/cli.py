@@ -23,6 +23,7 @@ def main():
     run_p.add_argument("--filter", default="*")
     run_p.add_argument("--category", help="Filter by category")
     run_p.add_argument("--subcategory", help="Filter by subcategory")
+    run_p.add_argument("--timeout", type=float, default=300.0, help="Request timeout in seconds (default: 300)")
     
     report_p = subparsers.add_parser("report")
     report_p.add_argument("run_dir")
@@ -30,7 +31,7 @@ def main():
     args = parser.parse_args()
     
     if args.cmd == "run":
-        client = LLMClient(args.endpoint)
+        client = LLMClient(args.endpoint, timeout=args.timeout)
         
         models = client.get_models()
         if not models:
@@ -72,7 +73,18 @@ def main():
                 console.print(f"  Running {test['id']}...", end=" ")
                 res = run_test(client, model, test, run_dir)
                 results.append(res)
-                console.print(f"[green]PASS[/green]" if res.get('status') == 'pass' else f"[red]FAIL[/red]")
+                status = res.get('status', 'error')
+                if status == 'pass':
+                    console.print(f"[green]PASS[/green]")
+                elif status == 'error':
+                    console.print(f"[yellow]ERROR[/yellow]")
+                    if res.get('error'):
+                        console.print(f"    [dim]{res['error']}[/dim]")
+                else:
+                    console.print(f"[red]FAIL[/red]")
+                    for ev in res.get('evaluations', []):
+                        if not ev.get('passed'):
+                            console.print(f"    [dim]{ev['type']}: {ev.get('details', 'failed')}[/dim]")
                 
         generate_report(results, run_dir)
         console.print(f"\nReport saved to {run_dir / 'report.html'}")

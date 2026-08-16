@@ -2,11 +2,11 @@ import httpx
 import time
 
 class LLMClient:
-    def __init__(self, base_url="http://localhost:5000"):
+    def __init__(self, base_url="http://localhost:5000", timeout=300.0):
         self.base_url = base_url.rstrip('/')
         if not self.base_url.endswith('/v1'):
             self.base_url += '/v1'
-        self.client = httpx.Client(timeout=180.0)
+        self.client = httpx.Client(timeout=timeout)
 
     def get_models(self):
         try:
@@ -16,7 +16,7 @@ class LLMClient:
         except Exception:
             return []
 
-    def chat(self, model, messages, temperature=0.0, max_tokens=1024, response_format=None):
+    def chat(self, model, messages, temperature=0.0, max_tokens=1024, response_format=None, timeout=None):
         payload = {
             "model": model,
             "messages": messages,
@@ -27,7 +27,10 @@ class LLMClient:
             payload["response_format"] = response_format
             
         start = time.time()
-        r = self.client.post(f"{self.base_url}/chat/completions", json=payload)
+        kwargs = {}
+        if timeout is not None:
+            kwargs['timeout'] = timeout
+        r = self.client.post(f"{self.base_url}/chat/completions", json=payload, **kwargs)
         total_latency = time.time() - start
         r.raise_for_status()
         

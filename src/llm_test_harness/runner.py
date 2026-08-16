@@ -3,6 +3,7 @@ import re
 from rich.console import Console
 from .evaluators import evaluate
 from .execution import run_code
+from .ocr import build_image_messages
 
 console = Console()
 
@@ -37,6 +38,10 @@ def run_test(client, model, test, run_dir):
     test_id = test['id']
     req = test['request']
     messages = req.get('messages', [])
+
+    # Image-based tests: inject the image into the user message content parts
+    if test.get('image'):
+        messages = build_image_messages(test)
     
     attempts = 0
     max_rounds = test.get('retry', {}).get('max_rounds', 1)
@@ -54,7 +59,8 @@ def run_test(client, model, test, run_dir):
                 messages=current_messages,
                 temperature=req.get('temperature', 0.0),
                 max_tokens=req.get('max_tokens', 1024),
-                response_format=req.get('response_format')
+                response_format=req.get('response_format'),
+                timeout=test.get('timeout_seconds')
             )
         except Exception as e:
             return {"status": "error", "error": str(e), "test_id": test_id, "model": model}
@@ -110,6 +116,8 @@ def run_test(client, model, test, run_dir):
             "metrics": resp.get('metrics', {}),
             "usage": resp.get('usage', {})
         }
+        if test.get('image'):
+            final_result['image_path'] = test['image'].get('path')
         break
         
     return final_result
