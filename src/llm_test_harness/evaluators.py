@@ -5,6 +5,56 @@ import difflib
 from pathlib import Path
 from jsonpath_ng import parse
 
+def _to_float(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _score_numeric_tolerance(name, value, target, full_tolerance, half_tolerance, max_score):
+    """
+    Score a numeric value using tolerance bands.
+
+    full_tolerance:
+        If abs(value - target) <= full_tolerance, give full points.
+
+    half_tolerance:
+        If abs(value - target) <= half_tolerance, give half points.
+
+    Otherwise give zero points.
+    """
+    numeric_value = _to_float(value)
+
+    if numeric_value is None:
+        return 0.0, f"{name}: missing or non-numeric value"
+
+    target = float(target)
+    full_tolerance = float(full_tolerance)
+    half_tolerance = float(half_tolerance)
+    max_score = float(max_score)
+
+    diff = abs(numeric_value - target)
+
+    if diff <= full_tolerance:
+        score = max_score
+        tier = "full"
+    elif diff <= half_tolerance:
+        score = max_score / 2.0
+        tier = "half"
+    else:
+        score = 0.0
+        tier = "none"
+
+    details = (
+        f"{name}: value={numeric_value:g}, "
+        f"target={target:g}, "
+        f"diff={diff:g}, "
+        f"score={score:g}/{max_score:g} ({tier})"
+    )
+
+    return score, details
+
 def _load_ocr_ref(ref_path):
     p = Path(ref_path)
     if not p.is_absolute():
@@ -112,6 +162,51 @@ def evaluate(test_eval, extracted, raw_content, client=None, default_model=None,
                 # Handled dynamically in runner
                 res["passed"] = True
 
+            elif t == "numeric_tolerance_score":
+                total_score = 0.0
+                max_total_score = 0.0
+                field_details = []
+
+                fields = ev.get("fields", [])
+
+                for field in fields:
+                    name = field.get("name", field.get("path", "value"))
+                    path = field.get("path")
+
+                    value = None
+
+                    if extracted is not None and path:
+                        try:
+                            matches = parse(path).find(extracted)
+                            if matches:
+                                value = matches[0].value
+                        except Exception:
+                            value = None
+
+                    max_score = float(field.get("max_score", 5.0))
+                    max_total_score += max_score
+
+                    score, details = _score_numeric_tolerance(
+                        name=name,
+                        value=value,
+                        target=field.get("target", 0),
+                        full_tolerance=field.get("full_tolerance", 0),
+                        half_tolerance=field.get("half_tolerance", 0),
+                        max_score=max_score
+                    )
+
+                    total_score += score
+                    field_details.append(details)
+
+                passing_threshold = float(
+                    ev.get("passing_threshold", max_total_score)
+                )
+
+                res["passed"] = total_score >= passing_threshold
+                res["score"] = total_score
+                res["max_score"] = max_total_score
+                res["details"] = "; ".join(field_details)
+                res["category"] = ev.get("category", "Numeric")
             elif t == 'ocr_eval':
                 try:
                     ref_path = ev.get('reference')
